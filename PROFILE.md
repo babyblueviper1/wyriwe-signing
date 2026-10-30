@@ -126,6 +126,17 @@ A verifier holding `intent`, `encoder_spec_cid`, the executed transaction and th
   can swap. Independent derivation turns a swap into a visible disagreement.
 - **Why not only display (ERC-7730):** a correct display on one machine says nothing about what another machine signed.
 
+## Relationship to ERC-8419 (Know-Your-Agent)
+ERC-8419 concludes about an **agent** (a level, a validity window, revocation). This profile concludes about **one
+execution**. The boundary agreed on the KYA PR holds here unchanged: one verified transaction never becomes a trust level.
+A **history** of verdicts can feed an agent-level assertion through an adapter (the planned WYRIWE → KYA adapter, built
+like the ERC-8294 one in the KYA reference repo):
+- Signing verdicts arrive **already bound to the invocation**: §9 step 5 checks the executed transaction itself. For
+  inference attestations that binding needs a separate receipt naming `input_hash`; for signing, the chain is the receipt.
+- They are `ReExecution`-class, so the adapter can run in **proof-checked** mode (rerun the encoder), not only attested.
+- The adapter's output should carry the window, the number of flows and the number of failures (for example "transaction
+  fidelity verified: N of N signing flows recompute over [window]"), never a bare "trusted".
+
 ## Test cases (to come with the independent checker)
 1. Honest flow: all steps pass.
 2. **Swapped payload:** a payload that differs from the encoder's output must fail step 3, even with valid signatures.
