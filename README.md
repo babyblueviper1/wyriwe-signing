@@ -9,6 +9,8 @@
 reviewed = signed = executed or not) with vectors, including a swapped-payload case that must fail. Built separately from
 the reference encoder, it is also the second independent implementation.
 
+**Draft spec:** [`PROFILE.md`](PROFILE.md), the ERC-8299 signing-input profile, draft 0 (mirrors 8299's sections).
+
 ## The failure
 The approval flow reviews one thing and the signers sign another, because something compromised sits between them.
 Bybit lost about $1.5B this way in 2025: the reviewers saw a legitimate-looking transaction, and the signers signed a
