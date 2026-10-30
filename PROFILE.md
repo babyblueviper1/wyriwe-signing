@@ -1,6 +1,6 @@
 # ERC-8299 signing-input profile (draft 0)
 
-**Status:** working draft, 30 Oct 2026. Not normative. Laid out to mirror ERC-8299's own sections so the two read side by
+**Status:** working draft 1, 30 Oct 2026 (draft 0 + Pavlo's review, WG 5957). Not normative. Laid out to mirror ERC-8299's own sections so the two read side by
 side. Authors: Tiago Merlini, Jimmy Shi, babyblueviper1. Comments welcome as issues or PRs.
 
 The key words "MUST", "MUST NOT", "SHOULD" and "MAY" are to be interpreted as described in RFC 2119.
@@ -73,6 +73,10 @@ rules, so this profile does not change what signers sign:
 
 The encoder specification MUST state the binding it uses; a verifier MUST recompute the digest with that binding.
 
+**v0 scope: Safe only.** Version 0 of this profile defines exactly one account binding, the Safe (SafeTx EIP-712 hash,
+`execTransaction`). ERC-4337 and EIP-7702 bindings are listed for direction only and are not part of v0; each gets its own
+binding section, vectors and negative controls before it is added.
+
 ### 5. Signer rule ("derive, don't receive")
 A conforming signer MUST:
 1. obtain the `intent` (not a payload, not a digest);
@@ -83,10 +87,15 @@ A conforming signer MUST:
 If any signer's machine produces a different payload, its signature will not match the others' and the account's own
 threshold check refuses execution. That refusal is the safety property.
 
-### 6. Review binding
+### 6. Review binding (authenticated)
 Reviewers approve the pair `(intent_hash, encoder_pipeline_hash)`. Any rendering shown to a human MUST be produced from the
-`intent` (for example through ERC-7730 descriptors), never from a payload. A reviewer's approval MAY be recorded as the
-EIP-712 struct in §7.
+`intent` (for example through ERC-7730 descriptors), never from a payload.
+
+An approval MUST be an EIP-712 signature over the `WyriweSigningInput` struct (§7) by a reviewer key, and the set of
+reviewer keys and the approval threshold MUST be pinned in advance, independently of the flow being checked (the **review
+trust root**: for example the Safe's owner set at the intent's block, or a reviewer list committed on-chain or in a pinned
+document). Recomputing a valid transaction does not establish what a human approved; only an authenticated approval against
+the review trust root does. Without it, the `reviewed` verdict (§9) is `NOT_ESTABLISHED`, never passed.
 
 ### 7. WyriweSigningInput struct (mapping to ERC-8299 §3)
 ```solidity
@@ -111,13 +120,30 @@ The intent → payload → digest binding is deterministic, so a `WyriweSigningI
 `Attestation` (who approved it), carried separately.
 
 ### 9. Verification procedure (the outside recompute; independent checker lane)
-A verifier holding `intent`, `encoder_spec_cid`, the executed transaction and the struct MUST:
-1. recompute `intent_hash` from the intent;
-2. recompute `encoder_pipeline_hash` from `encoder_spec_cid` and `intent_hash`;
-3. run the pinned encoder on the intent and check `keccak256(payload) == payloadHash`;
-4. derive the signing digest with the stated account binding and check it equals `signingDigest`;
-5. check the executed transaction's call equals `payload` and its signatures are over `signingDigest`;
-6. accept only if every step passes. Reported result: `reviewed = signed = executed`, or the first step that failed.
+The result is **four separate verdicts**, never one combined pass. Each is `PASS`, `FAIL` (with the step that failed) or
+`NOT_ESTABLISHED` (its evidence was not supplied). A verdict is never inferred from another one.
+
+| verdict | means | established by |
+|---|---|---|
+| `encoded` | the payload is exactly what the pinned encoder makes from the intent | steps 1–3 |
+| `reviewed` | an authenticated approval of this `(intent_hash, encoder_pipeline_hash)` meets the review trust root's threshold | step 4 |
+| `signed` | the signatures on the chain are over the digest derived from that payload, by enough account owners | steps 5–6 |
+| `executed` | the transaction carrying that payload was included **and succeeded** | step 7 |
+
+1. Recompute `intent_hash` from the intent.
+2. Recompute `encoder_pipeline_hash` from `encoder_spec_cid` and `intent_hash`.
+3. Run the pinned encoder on the intent; check `keccak256(payload) == payloadHash`.
+4. Verify each approval signature over the struct against the pinned review trust root; count distinct approved reviewers
+   against its threshold.
+5. Derive the signing digest with the stated account binding (v0: Safe); check it equals `signingDigest`.
+6. Check the on-chain transaction's call equals `payload`, and its signatures are over `signingDigest` by enough current
+   owners.
+7. Check the transaction receipt: included, `status = 1`, and for a Safe the `ExecutionSuccess` event for this
+   `signingDigest` (an `ExecutionFailure` event, or a revert, is `executed: FAIL` even though steps 1–6 pass).
+
+**No false green.** Removing or skipping any step MUST turn its verdict into `NOT_ESTABLISHED` or `FAIL`, never `PASS`; each
+verdict's negative vectors (below) and a mutation run that deletes each check prove it. Consumers that need "what was
+reviewed is what ran" MUST require all four verdicts to be `PASS`.
 
 ## Rationale (draft)
 - **Why the encoder is pinned by CID:** as in ERC-8299, the pipeline must be public and frozen for "anyone can
@@ -138,11 +164,22 @@ like the ERC-8294 one in the KYA reference repo):
   fidelity verified: N of N signing flows recompute over [window]"), never a bare "trusted".
 
 ## Test cases (to come with the independent checker)
-1. Honest flow: all steps pass.
-2. **Swapped payload:** a payload that differs from the encoder's output must fail step 3, even with valid signatures.
-3. Wrong encoder: a different `encoder_spec_cid` must fail step 2.
-4. Digest substitution: a valid payload with a different signing digest must fail step 4.
-5. Two independent encoder implementations: identical payloads for every vector, or the vector fails.
+Positive: an honest Safe flow, all four verdicts `PASS`.
+
+Negative, one per guarantee (each must FAIL or be NOT_ESTABLISHED, never PASS):
+1. **Swapped payload:** differs from the encoder's output: `encoded: FAIL` even with valid signatures.
+2. Wrong encoder: a different `encoder_spec_cid`: `encoded: FAIL`.
+3. No approval supplied: `reviewed: NOT_ESTABLISHED` (not PASS), even when everything else passes.
+4. Approval by a key outside the review trust root, or below threshold: `reviewed: FAIL`.
+5. Approval of a different `intent_hash`: `reviewed: FAIL`.
+6. Digest substitution: a valid payload with a different signing digest: `signed: FAIL`.
+7. Signatures from non-owners or below the Safe threshold: `signed: FAIL`.
+8. Included but reverted, or a Safe `ExecutionFailure`: `executed: FAIL` while the other three PASS.
+9. No transaction receipt supplied: `executed: NOT_ESTABLISHED`.
+10. Two independent encoder implementations: identical payloads for every vector, or the vector fails.
+
+Mutation controls: a run that deletes each check in turn must turn at least one vector from FAIL to PASS (so every check is
+load-bearing), and a crash must be counted as a crash, not a kill (the harness rule from DEILS Review 5).
 
 ## Security considerations (draft)
 - A signer whose machine is compromised *and* runs the pinned encoder can still sign a different digest. The protection is
@@ -152,6 +189,7 @@ like the ERC-8294 one in the KYA reference repo):
 - The intent itself can be wrong (the right encoding of a bad decision). This profile proves fidelity, not judgment.
 
 ## Open questions
+0. The review trust root's form: the Safe's owner set at a pinned block, a separate reviewer list, or both?
 1. Intent format: this minimal object, ERC-7730 descriptors, or EIP-712 types as the intent?
 2. Encoder distribution: reference digest only, a WASM build, or several independent implementations required?
 3. Where `intentHash` lives on-chain, if at all (calldata suffix, event, registry), and its gas cost.

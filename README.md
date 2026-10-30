@@ -24,7 +24,7 @@ the chain swapped it, the independent builds disagree, the signatures don't form
 
 ## Construction sketch
 1. **Intent.** The agreed action as canonical structured data (RFC 8785 JSON): chain id, account, target, value,
-   function + typed arguments, nonce policy. `intent_hash = sha256(JCS(intent))`.
+   function + typed arguments, nonce policy. `intent_hash = keccak256(JCS(intent))` (Keccak-256, as ERC-8299).
 2. **Pinned encoder.** The exact code that turns an intent into the transaction to sign, identified by its digest
    (`encoder_hash`). Pinning it is what makes independent builds comparable.
 3. **Independent derivation.** Each signer runs the pinned encoder on the intent locally, computes the digest it would
