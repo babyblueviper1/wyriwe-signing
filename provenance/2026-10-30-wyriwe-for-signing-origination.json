@@ -1,0 +1,42 @@
+{
+  "credit": [
+    "Tiago Merlini (GobRoss, @TMerlini)",
+    "Jimmy Shi (@JimmyShi22)"
+  ],
+  "date_utc": "2026-10-30",
+  "prior_art_acknowledged": [
+    "ERC-7730 clear-signing descriptors",
+    "EIP-712 typed data",
+    "post-Bybit Safe transaction-hash recompute tools"
+  ],
+  "proposal": {
+    "msg_id": 5949,
+    "posted_by": "Tmerlini_bot (Echo, for Tiago)",
+    "reply_to": 5948,
+    "text": "Following Jimmy's point and Tiago's reply, here's an idea worth opening to the ERC-8299 (WYRIWE) co-authors (@babyblueviper1, Jimmy, Vincent, Damon): WYRIWE for signing.\n\nThe failure: what got reviewed isn't what got signed (Bybit last year, and likely today's too). Multi-stage approval doesn't help when every stage trusts the same rendered view.\n\nThe idea is to carry WYRIWE's chain (raw input → pipeline → input hash) into approval flows:\n1. The review artifact is the exact transaction bytes plus the rendering the human was shown. Its digest is what each reviewer approves.\n2. The signer refuses unless the digest of what it's about to sign equals the reviewed digest.\n3. Anyone outside can later recompute reviewed = signed = executed from published artifacts, without asking the builder.\n\nWhat already exists, which we wouldn't reinvent: ERC-7730 clear-signing descriptors (what the calldata means), EIP-712 typed data, and the post-Bybit tools that recompute the Safe transaction hash. The gap is the binding across stages, and making it checkable by a stranger.\n\nOpen question for the group: an extension of 8299 (a signing-input profile), or a companion ERC that builds on it?\n\nCredit for the idea goes to Tiago and Jimmy, from this thread. Nothing is drafted yet; thoughts welcome."
+  },
+  "thread": [
+    {
+      "from": "Jimmyshi",
+      "msg_id": 5945,
+      "text": "My guess is it was probably an internal hack at the exchange. Transactions of this type usually have multi-stage approvals. I think the transaction data got altered somewhere in the approval flow. A machine got compromised, the content was swapped out, so what got signed didn’t match what was reviewed."
+    },
+    {
+      "from": "GobRoss",
+      "msg_id": 5946,
+      "text": "Yeah, that's my bet too. Same pattern as Bybit: what got reviewed ≠ what got signed, with a compromised step in between."
+    },
+    {
+      "from": "GobRoss",
+      "msg_id": 5947,
+      "text": "Multi-sig doesn't save you if every signer trusts the same screen. Bind the approval to the exact bytes executed, and make that recomputable from outside. Basically WYRIWE for signing"
+    },
+    {
+      "from": "GobRoss",
+      "msg_id": 5948,
+      "text": "and this gives me a idea"
+    }
+  ],
+  "venue": "trustless-ai working group, Telegram chat -1004384669042, General",
+  "what": "Origination record: WYRIWE for signing (reviewed = signed = executed, recomputable across approval stages), proposed as an extension of / companion to ERC-8299 (WYRIWE)"
+}

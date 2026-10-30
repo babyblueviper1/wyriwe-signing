@@ -1,8 +1,13 @@
 # WYRIWE for signing: reviewed = signed = executed
 
 **Status:** idea, pre-draft (30 Oct 2026). Proposed in the trustless-ai working group by **Tiago Merlini** and
-**Jimmy Shi**, as an extension of, or companion to, [ERC-8299 (WYRIWE)](https://github.com/ethereum/ERCs/pull/1810).
-Nothing here is normative yet. Comments and co-authors welcome.
+**Jimmy Shi**; leaning toward a **signing-input profile of [ERC-8299 (WYRIWE)](https://github.com/ethereum/ERCs/pull/1810)**
+(the chain intent → pinned encoding → hash is already 8299's). Nothing here is normative yet.
+
+**Co-authors:** Tiago Merlini (@TMerlini), Jimmy Shi (@JimmyShi22), babyblueviper1 (@babyblueviper1).
+**Lanes:** babyblueviper1 carries step 6, an independent stdlib checker (intent + pinned encoder + signed tx →
+reviewed = signed = executed or not) with vectors, including a swapped-payload case that must fail. Built separately from
+the reference encoder, it is also the second independent implementation.
 
 ## The failure
 The approval flow reviews one thing and the signers sign another, because something compromised sits between them.
@@ -49,7 +54,7 @@ The gap this addresses is the **binding across stages** (intent → review → e
 independent derivation and **checkable by a stranger** afterwards, not display alone.
 
 ## Open questions
-- Extension of ERC-8299 (a signing-input profile) or a companion ERC that consumes it?
+- Extension of ERC-8299 (a signing-input profile; current lean) or a companion ERC that consumes it?
 - The intent format: reuse ERC-7730 descriptors or EIP-712 types, or define a minimal canonical intent?
 - How is the encoder pinned and distributed (reference implementation digest, a WASM build, several independent
   implementations that must agree)?
@@ -59,11 +64,11 @@ independent derivation and **checkable by a stranger** afterwards, not display a
 - EIP-7702 delegations: should a delegation (code replacement) need a stricter intent class?
 
 ## Provenance
-The idea was proposed in the trustless-ai working group on 30 Oct 2026 (messages 5945–5952). A record of those messages
-is anchored with OpenTimestamps: `provenance/2026-10-30-wyriwe-for-signing-origination.json.ots` commits to the record's
-sha256 `d4a811ffb2818da800d90382fd6fd1cbce62f021b168164b6cff54a93d36055d`. The record itself quotes a private group, so
-it is held back until everyone quoted agrees to publish it. Then anyone can check that the file hashes to that value
-and that the proof dates it. The proof is pending Bitcoin confirmation as of 30 Oct 2026, and will be upgraded in place.
+Proposed in the trustless-ai working group on 30 Oct 2026 (messages 5945–5955). The record of those messages is
+`provenance/2026-10-30-wyriwe-for-signing-origination.json` (published with the agreement of those quoted), and
+`provenance/…json.ots` is its OpenTimestamps proof, committing to sha256
+`d4a811ffb2818da800d90382fd6fd1cbce62f021b168164b6cff54a93d36055d`. Check: `shasum -a 256` the JSON, then verify the
+`.ots` against a Bitcoin block header. The proof is pending confirmation as of 30 Oct 2026, and will be upgraded in place.
 
 ## License
 CC0 1.0 Universal. See `LICENSE`.
