@@ -71,7 +71,7 @@ Proposed in the trustless-ai working group on 30 Oct 2026 (messages 5945–5955)
 `provenance/2026-10-30-wyriwe-for-signing-origination.json` (published with the agreement of those quoted), and
 `provenance/…json.ots` is its OpenTimestamps proof, committing to sha256
 `d4a811ffb2818da800d90382fd6fd1cbce62f021b168164b6cff54a93d36055d`. Check: `shasum -a 256` the JSON, then verify the
-`.ots` against a Bitcoin block header. The proof is pending confirmation as of 30 Oct 2026, and will be upgraded in place.
+`.ots` against a Bitcoin block header. **Confirmed in Bitcoin block 973827** (hash `00000000000000000000b8a136d8181df8a281b3ce27d358b1cb14de4d9a475d`, block time 2026-10-30 13:35:33 UTC): the proof's computed merkle root equals that block's, with the header read from mempool.space and blockstream.info (identical). To check yourself: `ots verify provenance/2026-10-30-wyriwe-for-signing-origination.json.ots` against your own node or two explorers.
 
 ## License
 CC0 1.0 Universal. See `LICENSE`.
