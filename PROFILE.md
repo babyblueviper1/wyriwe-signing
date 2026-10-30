@@ -1,6 +1,6 @@
 # ERC-8299 signing-input profile (draft 0)
 
-**Status:** working draft 1, 30 Oct 2026 (draft 0 + Pavlo's review, WG 5957). Not normative. Laid out to mirror ERC-8299's own sections so the two read side by
+**Status:** working draft 2, 30 Oct 2026 (draft 1: Pavlo's review, WG 5957; draft 2: the review trust root, OnThe_Stars, WG 5959). Not normative. Laid out to mirror ERC-8299's own sections so the two read side by
 side. Authors: Tiago Merlini, Jimmy Shi, babyblueviper1. Comments welcome as issues or PRs.
 
 The key words "MUST", "MUST NOT", "SHOULD" and "MAY" are to be interpreted as described in RFC 2119.
@@ -97,6 +97,22 @@ trust root**: for example the Safe's owner set at the intent's block, or a revie
 document). Recomputing a valid transaction does not establish what a human approved; only an authenticated approval against
 the review trust root does. Without it, the `reviewed` verdict (§9) is `NOT_ESTABLISHED`, never passed.
 
+**The review trust root must itself be recomputable** (the rule ERC-8275 applies to every reputation input: no scorer or
+settler to trust). Two kinds, and the verdict always says which one was used:
+- **`owners@block` (v0 default).** The Safe's owner set and threshold at a pinned block, read from the chain. It adds no new
+  trust, but the reviewers *are* the signers, so a `reviewed: PASS` here proves **fidelity** (what the owners approved is
+  what they signed), **not independent review**: an owner set compromised past its threshold approves and signs the same
+  bad payload.
+- **`reviewer-list@commitment` (extension).** A separate reviewer key set and threshold, valid only if **committed on-chain**
+  (a contract, at a pinned block) **or content-addressed** (its hash pinned in advance). A list someone maintains off-chain
+  is not a trust root: it reintroduces the trusted party this profile exists to remove. Only this kind can let `reviewed`
+  catch a compromised signer.
+- **Both together** only once their composition is defined (open question 0a); until then a flow declares exactly one.
+
+The checker MUST report, with the `reviewed` verdict: the trust-root kind and its identifier (block number, or contract and
+block, or content hash), and the **overlap between the approving reviewers and the signers**, so a consumer can tell
+fidelity from independent review without assuming either.
+
 ### 7. WyriweSigningInput struct (mapping to ERC-8299 §3)
 ```solidity
 struct WyriweSigningInput {
@@ -126,15 +142,17 @@ The result is **four separate verdicts**, never one combined pass. Each is `PASS
 | verdict | means | established by |
 |---|---|---|
 | `encoded` | the payload is exactly what the pinned encoder makes from the intent | steps 1–3 |
-| `reviewed` | an authenticated approval of this `(intent_hash, encoder_pipeline_hash)` meets the review trust root's threshold | step 4 |
+| `reviewed` | an authenticated approval of this `(intent_hash, encoder_pipeline_hash)` meets the review trust root's threshold; reported with the trust-root kind and the reviewer/signer overlap (§6) | step 4 |
 | `signed` | the signatures on the chain are over the digest derived from that payload, by enough account owners | steps 5–6 |
 | `executed` | the transaction carrying that payload was included **and succeeded** | step 7 |
 
 1. Recompute `intent_hash` from the intent.
 2. Recompute `encoder_pipeline_hash` from `encoder_spec_cid` and `intent_hash`.
 3. Run the pinned encoder on the intent; check `keccak256(payload) == payloadHash`.
-4. Verify each approval signature over the struct against the pinned review trust root; count distinct approved reviewers
-   against its threshold.
+4. Resolve the review trust root (owners@block from the chain, or reviewer-list@commitment from its on-chain record or
+   pinned content hash; anything else: `reviewed: NOT_ESTABLISHED`). Verify each approval signature over the struct against
+   it; count distinct approved reviewers against its threshold. Report the trust-root kind and identifier, and which
+   approving reviewers are also signers in step 6.
 5. Derive the signing digest with the stated account binding (v0: Safe); check it equals `signingDigest`.
 6. Check the on-chain transaction's call equals `payload`, and its signatures are over `signingDigest` by enough current
    owners.
@@ -171,6 +189,9 @@ Negative, one per guarantee (each must FAIL or be NOT_ESTABLISHED, never PASS):
 2. Wrong encoder: a different `encoder_spec_cid`: `encoded: FAIL`.
 3. No approval supplied: `reviewed: NOT_ESTABLISHED` (not PASS), even when everything else passes.
 4. Approval by a key outside the review trust root, or below threshold: `reviewed: FAIL`.
+4a. A reviewer list that is neither on-chain nor content-addressed: `reviewed: NOT_ESTABLISHED`, never PASS.
+4b. owners@block with every approver also a signer: `reviewed: PASS` **reported as owners@block with full overlap**; a
+    consumer requiring independent review must read it as not independent.
 5. Approval of a different `intent_hash`: `reviewed: FAIL`.
 6. Digest substitution: a valid payload with a different signing digest: `signed: FAIL`.
 7. Signatures from non-owners or below the Safe threshold: `signed: FAIL`.
@@ -189,7 +210,8 @@ load-bearing), and a crash must be counted as a crash, not a kill (the harness r
 - The intent itself can be wrong (the right encoding of a bad decision). This profile proves fidelity, not judgment.
 
 ## Open questions
-0. The review trust root's form: the Safe's owner set at a pinned block, a separate reviewer list, or both?
+0. ~~The review trust root's form.~~ Settled for v0 (WG 5959–5960): owners@block default, reviewer-list@commitment as the extension, the kind always reported (§6).
+0a. How owners@block and a reviewer list compose when a flow wants both (e.g. reviewers AND owners, each with its own threshold).
 1. Intent format: this minimal object, ERC-7730 descriptors, or EIP-712 types as the intent?
 2. Encoder distribution: reference digest only, a WASM build, or several independent implementations required?
 3. Where `intentHash` lives on-chain, if at all (calldata suffix, event, registry), and its gas cost.

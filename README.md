@@ -5,6 +5,7 @@
 (the chain intent → pinned encoding → hash is already 8299's). Nothing here is normative yet.
 
 **Co-authors:** Tiago Merlini (@TMerlini), Jimmy Shi (@JimmyShi22), babyblueviper1 (@babyblueviper1).
+**Contributors:** Pavlo (review, WG 5957), OnThe_Stars (review trust root, WG 5959).
 **Lanes:** babyblueviper1 carries step 6, an independent stdlib checker (intent + pinned encoder + signed tx →
 reviewed = signed = executed or not) with vectors, including a swapped-payload case that must fail. Built separately from
 the reference encoder, it is also the second independent implementation.
