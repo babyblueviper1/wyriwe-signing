@@ -10,6 +10,8 @@
 reviewed = signed = executed or not) with vectors, including a swapped-payload case that must fail. Built separately from
 the reference encoder, it is also the second independent implementation.
 
+**Independent checker:** [babyblueviper1/invinoveritas `examples/wyriwe-signing`](https://github.com/babyblueviper1/invinoveritas/tree/cc822f87e8c1fac93fc673ed1447338167a26770/examples/wyriwe-signing) (stdlib, vectors for every test case).
+
 **Draft spec:** [`PROFILE.md`](PROFILE.md), the ERC-8299 signing-input profile, draft 0 (mirrors 8299's sections).
 
 ## The failure

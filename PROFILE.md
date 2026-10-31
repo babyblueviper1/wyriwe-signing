@@ -1,6 +1,6 @@
 # ERC-8299 signing-input profile (draft 0)
 
-**Status:** working draft 2, 30 Oct 2026 (draft 1: Pavlo's review, WG 5957; draft 2: the review trust root, OnThe_Stars, WG 5959). Not normative. Laid out to mirror ERC-8299's own sections so the two read side by
+**Status:** working draft 2, 30 Oct 2026 (draft 1: Pavlo's review, WG 5957; draft 2: the review trust root, OnThe_Stars, WG 5959; draft 3: authenticated trust roots and execution, Pavlo and Echo, WG 5962-5967). Not normative. Laid out to mirror ERC-8299's own sections so the two read side by
 side. Authors: Tiago Merlini, Jimmy Shi, babyblueviper1. Comments welcome as issues or PRs.
 
 The key words "MUST", "MUST NOT", "SHOULD" and "MAY" are to be interpreted as described in RFC 2119.
@@ -113,6 +113,16 @@ The checker MUST report, with the `reviewed` verdict: the trust-root kind and it
 block, or content hash), and the **overlap between the approving reviewers and the signers**, so a consumer can tell
 fidelity from independent review without assuming either.
 
+**Authority, not only integrity (Pavlo, WG 5962).** A trust root counts only when the checker authenticates it itself:
+- `owners@block`: the owner set and threshold are **read from proofs** (the account proof and the storage proofs of the
+  Safe's owners list and threshold) against a block header the checker hashes, which must hash to the stated block hash and
+  carry the stated block number. A supplied owner list is never trusted: without the proofs, `reviewed: NOT_ESTABLISHED`.
+- `reviewer-list@commitment`: a content hash proves the list is unchanged, not that anyone with authority chose it. The list
+  counts only when the account's **proven** owners signed its hash, meeting their threshold, at a block **before** the
+  authenticated execution block (§9 step 7). Otherwise `reviewed: NOT_ESTABLISHED`.
+
+An offline checker cannot know whether a header's block is canonical; it reports the block hash for the consumer to confirm.
+
 ### 7. WyriweSigningInput struct (mapping to ERC-8299 §3)
 ```solidity
 struct WyriweSigningInput {
@@ -144,20 +154,28 @@ The result is **four separate verdicts**, never one combined pass. Each is `PASS
 | `encoded` | the payload is exactly what the pinned encoder makes from the intent | steps 1–3 |
 | `reviewed` | an authenticated approval of this `(intent_hash, encoder_pipeline_hash)` meets the review trust root's threshold; reported with the trust-root kind and the reviewer/signer overlap (§6) | step 4 |
 | `signed` | the signatures on the chain are over the digest derived from that payload, by enough account owners | steps 5–6 |
-| `executed` | the transaction carrying that payload was included **and succeeded** | step 7 |
+| `executed` | the transaction carrying that payload was included **and succeeded**, proven against a header the checker hashes | step 7 |
 
 1. Recompute `intent_hash` from the intent.
 2. Recompute `encoder_pipeline_hash` from `encoder_spec_cid` and `intent_hash`.
 3. Run the pinned encoder on the intent; check `keccak256(payload) == payloadHash`.
-4. Resolve the review trust root (owners@block from the chain, or reviewer-list@commitment from its on-chain record or
-   pinned content hash; anything else: `reviewed: NOT_ESTABLISHED`). Verify each approval signature over the struct against
+4. Resolve and authenticate the review trust root (§6: owners@block from proofs against a hashed header, or
+   reviewer-list@commitment from its content hash plus the proven owners' prior authorization; anything else:
+   `reviewed: NOT_ESTABLISHED`). Verify each approval signature over the struct against
    it; count distinct approved reviewers against its threshold. Report the trust-root kind and identifier, and which
    approving reviewers are also signers in step 6.
 5. Derive the signing digest with the stated account binding (v0: Safe); check it equals `signingDigest`.
 6. Check the on-chain transaction's call equals `payload`, and its signatures are over `signingDigest` by enough current
    owners.
-7. Check the transaction receipt: included, `status = 1`, and for a Safe the `ExecutionSuccess` event for this
-   `signingDigest` (an `ExecutionFailure` event, or a revert, is `executed: FAIL` even though steps 1–6 pass).
+7. Authenticate the execution (Echo, WG 5967): the header hashes to the stated block hash and carries the stated block
+   number; the transaction's canonical bytes and its receipt are proven, by Merkle-Patricia proofs at the same index, under
+   the header's `transactionsRoot` and `receiptsRoot`; and the proven transaction is the one checked in step 6 (`keccak256`
+   of its bytes equals the supplied `tx.hash` and `receipt.transactionHash`, and its `to` and calldata equal step 6's). Then,
+   from the **proven** receipt: `status = 1` and, for a Safe, the `ExecutionSuccess` event for this `signingDigest` (an
+   `ExecutionFailure` event, or a revert, is `executed: FAIL` even though steps 1–6 pass). Anything less is
+   `executed: NOT_ESTABLISHED`, never PASS: receipt data without these proofs (reason `rpc_data_consistent_unauthenticated`),
+   no transaction, a hash mismatch, or a proof of another transaction. The block hash is reported for the consumer to confirm
+   as canonical.
 
 **No false green.** Removing or skipping any step MUST turn its verdict into `NOT_ESTABLISHED` or `FAIL`, never `PASS`; each
 verdict's negative vectors (below) and a mutation run that deletes each check prove it. Consumers that need "what was
@@ -181,7 +199,11 @@ like the ERC-8294 one in the KYA reference repo):
 - The adapter's output should carry the window, the number of flows and the number of failures (for example "transaction
   fidelity verified: N of N signing flows recompute over [window]"), never a bare "trusted".
 
-## Test cases (to come with the independent checker)
+## Test cases
+The independent checker carries all of them as vectors, with the mutation controls below:
+[babyblueviper1/invinoveritas `examples/wyriwe-signing`](https://github.com/babyblueviper1/invinoveritas/tree/cc822f87e8c1fac93fc673ed1447338167a26770/examples/wyriwe-signing) (Python standard library only; 47 vectors, every check
+load-bearing, plus live runs against an Ethereum mainnet Safe v1.4.1).
+
 Positive: an honest Safe flow, all four verdicts `PASS`.
 
 Negative, one per guarantee (each must FAIL or be NOT_ESTABLISHED, never PASS):
@@ -196,11 +218,18 @@ Negative, one per guarantee (each must FAIL or be NOT_ESTABLISHED, never PASS):
 6. Digest substitution: a valid payload with a different signing digest: `signed: FAIL`.
 7. Signatures from non-owners or below the Safe threshold: `signed: FAIL`.
 8. Included but reverted, or a Safe `ExecutionFailure`: `executed: FAIL` while the other three PASS.
+4c. Trust-root authority (§6): a content-addressed list with valid approvals but no authorization by the proven owners;
+    one pinned by non-owners, below the owners' threshold, or after execution; an owner set supplied without proofs, a
+    header that does not hash to the block hash, or a proof for another account: `reviewed: NOT_ESTABLISHED`.
 9. No transaction receipt supplied: `executed: NOT_ESTABLISHED`.
+9a. Execution binding (Pavlo, Echo, WG 5966-5967), each `executed: NOT_ESTABLISHED`, never PASS: `tx.hash` differs from
+    `receipt.transactionHash`; a receipt with an arbitrary `blockHash` and no inclusion proof; the transaction removed while a
+    matching success receipt is kept; a header that does not hash to the block hash; a proof with a node removed; a proof of
+    another transaction in the same block.
 10. Two independent encoder implementations: identical payloads for every vector, or the vector fails.
 
-Mutation controls: a run that deletes each check in turn must turn at least one vector from FAIL to PASS (so every check is
-load-bearing), and a crash must be counted as a crash, not a kill (the harness rule from DEILS Review 5).
+Mutation controls: a run that deletes each check in turn must change at least one vector's verdict, for example from FAIL or
+NOT_ESTABLISHED to PASS (so every check is load-bearing; the 9a binding checks included), and a crash must be counted as a crash, not a kill (the harness rule from DEILS Review 5).
 
 ## Security considerations (draft)
 - A signer whose machine is compromised *and* runs the pinned encoder can still sign a different digest. The protection is
