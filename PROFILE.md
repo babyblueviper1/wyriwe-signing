@@ -1,6 +1,6 @@
 # ERC-8299 signing-input profile (draft 0)
 
-**Status:** working draft 2, 30 Oct 2026 (draft 1: Pavlo's review, WG 5957; draft 2: the review trust root, OnThe_Stars, WG 5959; draft 3: authenticated trust roots and execution, Pavlo and Echo, WG 5962-5967; draft 4: the reviewer-list pin recorded on-chain before execution, Echo, PR #1 review 31 Oct). Not normative. Laid out to mirror ERC-8299's own sections so the two read side by
+**Status:** working draft 4, 31 Oct 2026 (draft 1: Pavlo's review, WG 5957; draft 2: the review trust root, OnThe_Stars, WG 5959; draft 3: authenticated trust roots and execution, Pavlo and Echo, WG 5962-5967; draft 4: the reviewer-list pin recorded on-chain before execution, Echo, PR #1 review 31 Oct). Not normative. Laid out to mirror ERC-8299's own sections so the two read side by
 side. Authors: Tiago Merlini, Jimmy Shi, babyblueviper1. Comments welcome as issues or PRs.
 
 The key words "MUST", "MUST NOT", "SHOULD" and "MAY" are to be interpreted as described in RFC 2119.
