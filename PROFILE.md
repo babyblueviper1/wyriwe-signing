@@ -201,7 +201,7 @@ like the ERC-8294 one in the KYA reference repo):
 
 ## Test cases
 The independent checker carries all of them as vectors, with the mutation controls below:
-[babyblueviper1/invinoveritas `examples/wyriwe-signing`](https://github.com/babyblueviper1/invinoveritas/tree/cc822f87e8c1fac93fc673ed1447338167a26770/examples/wyriwe-signing) (Python standard library only; 47 vectors, every check
+[babyblueviper1/invinoveritas `examples/wyriwe-signing`](https://github.com/babyblueviper1/invinoveritas/tree/a4b7a4cb70d3e7e0bd8de3faafe0c0dadf9c6e07/examples/wyriwe-signing) (Python standard library only; 47 vectors, every check
 load-bearing, plus live runs against an Ethereum mainnet Safe v1.4.1).
 
 Positive: an honest Safe flow, all four verdicts `PASS`.
